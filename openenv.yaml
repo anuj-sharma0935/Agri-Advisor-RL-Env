@@ -1,0 +1,21 @@
+version: "1.0"
+env_name: "FarmerAdvisory-v1"
+entry_point: "env:FarmerEnv"
+tasks:
+  - id: 0
+    name: "Easy: Stable Climate"
+  - id: 1
+    name: "Medium: Variable Weather"
+  - id: 2
+    name: "Hard: Extreme Events"
+actions:
+  0: "WAIT"
+  1: "PLANT_CROP"
+  2: "IRRIGATE"
+  3: "FERTILIZE"
+  4: "PESTICIDE"
+observations:
+  - budget
+  - water_level
+  - pest_pressure
+  - crop_health

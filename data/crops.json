@@ -1,0 +1,37 @@
+{
+  "wheat": {
+    "diseases": {
+      "rust": ["brown streaks", "yellow spots"],
+      "wilting": ["drooping leaves", "wilting"]
+    },
+    "treatments": {"rust": "tricyclazole", "wilting": "propiconazole"}
+  },
+  "paddy": {
+    "diseases": {
+      "blast": ["diamond spots", "neck rot"],
+      "blight": ["yellowing", "stunted growth"]
+    },
+    "treatments": {"blast": "tricyclazole", "blight": "streptocycline"}
+  },
+  "maize": {
+    "diseases": {
+      "leaf_spot": ["grey spots", "drying leaves"],
+      "stem_borer": ["small holes", "broken stems"]
+    },
+    "treatments": {"leaf_spot": "mancozeb", "stem_borer": "chlorpyrifos"}
+  },
+  "cotton": {
+    "diseases": {
+      "bollworm": ["holes in bolls", "white fluff"],
+      "aphids": ["sticky leaves", "curled leaves"]
+    },
+    "treatments": {"bollworm": "spinosad", "aphids": "imidacloprid"}
+  },
+  "tomato": {
+    "diseases": {
+      "early_blight": ["concentric rings", "yellow halo"],
+      "fruit_borer": ["holes in fruit", "rotting"]
+    },
+    "treatments": {"early_blight": "copper_oxychloride", "fruit_borer": "flubendiamide"}
+  }
+}
