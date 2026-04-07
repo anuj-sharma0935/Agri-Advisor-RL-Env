@@ -1,19 +1,26 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "farmer-advisory-env"
 version = "0.1.0"
 description = "Autonomous Agri-Advisor RL System"
+readme = "README.md"
+requires-python = ">=3.9"
 dependencies = [
     "gradio",
     "fastapi",
     "uvicorn",
     "requests",
     "numpy",
-    "pandas"
+    "pandas",
+    "gymnasium",
+    "openenv>=0.2.0"
 ]
 
+[project.scripts]
+server = "app:app"
+
 [tool.setuptools]
-packages = ["."]
+packages = { find = {} }
