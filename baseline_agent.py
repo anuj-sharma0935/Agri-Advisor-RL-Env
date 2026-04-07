@@ -35,7 +35,7 @@ class BaselineAgent:
 def run_inference():
     agent = BaselineAgent()
     # API URL (Make sure app.py is running on this port)
-    BASE_URL = "http://127.0.0.1:8000"
+    BASE_URL = "http://127.0.0.1:7860"
 
     print("🚀 Starting Baseline Inference...")
 
