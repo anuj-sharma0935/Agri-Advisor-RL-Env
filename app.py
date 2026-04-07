@@ -11,7 +11,7 @@ env = FarmerEnv()
 current_obs, _ = env.reset()
 last_level = "Medium: Standard"
 
-# 2. API ENDPOINTS (For Baseline Agent)
+# 2. API ENDPOINTS (For Baseline Agent & Automated Grading)
 @app.post("/reset")
 async def reset(request: Request):
     global current_obs
@@ -38,23 +38,34 @@ async def step(request: Request):
     current_obs = obs
     return {"obs": obs, "reward": rew, "done": done, "info": info}
 
-# 3. UI LOGIC (Fixes the 'steps' error)
+@app.get("/grader")
+async def grader():
+    global current_obs
+    try:
+        # Fixed: Ab 'None' nahi aayega, real score calculation hogi
+        health = current_obs.get('crop_health', 0)
+        budget = current_obs.get('budget', 0)
+        score = (health / 100) * 0.7 + (min(budget, 5000) / 5000) * 0.3
+        return {"score": round(float(score), 2)}
+    except:
+        return {"score": 0.0}
+
+# 3. UI LOGIC (Automated & Error-Free)
 def ui_run(task):
     global current_obs, last_level
     
-    # Try-except block taaki 'steps' wala error UI crash na kare
     try:
         steps_count = getattr(env, 'steps', 0)
         
-        # Reset if level changed or game ended
+        # Level Change ya Game Over par Reset
         if task != last_level or steps_count == 0 or env.budget <= 0:
             last_level = task
             mapping = {"Easy: Stable": 0, "Medium: Standard": 1, "Hard: Extreme": 2}
             current_obs, _ = env.reset(options={"task": mapping.get(task, 1)})
         
-        # Automated Rule-based AI
+        # Automated Rule-based AI for UI
         if current_obs['water_level'] < 30: action = 2 # IRRIGATE
-        elif current_obs['pest_pressure'] > 40: action = 4 # PESTICIDE
+        elif current_obs['pest_pressure'] > 45: action = 4 # PESTICIDE
         else: action = 0 # WAIT
 
         obs, rew, done, _, _ = env.step(action)
@@ -68,7 +79,7 @@ def ui_run(task):
                readable_actions.get(action, "WAIT"), f"{rew} pts", status
                
     except Exception as e:
-        return "Error", str(e), "Error", "Error", "Error", "Error", "0 pts", "❌ Error"
+        return "Error", "Error", "0%", "0%", "0%", "ERROR", "0 pts", f"❌ {str(e)}"
 
 # 4. GRADIO INTERFACE (Exact Screenshot Layout)
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
