@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Autonomous Agri-Advisor RL System"
 readme = "README.md"
 requires-python = ">=3.9"
+
 dependencies = [
     "gradio",
     "fastapi",
@@ -20,7 +21,7 @@ dependencies = [
 ]
 
 [project.scripts]
-server = "app:app"
+server = "app:main"
 
 [tool.setuptools]
 packages = { find = {} }
