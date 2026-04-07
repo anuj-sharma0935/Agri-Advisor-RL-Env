@@ -1,104 +1,97 @@
 import gradio as gr
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
 import uvicorn
 import os
 import sys
-import random
-
-# 1. PEHLE APP DEFINE KARO (Error fix yahi se hoga)
-app = FastAPI()
-
-# 2. ENVIRONMENT AUR AGENT LOAD KARO
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from env import FarmerEnv
+
+# 1. SERVER SETUP
+app = FastAPI()
 env = FarmerEnv()
 current_obs, _ = env.reset()
+last_level = "Medium: Standard"
 
-# 3. AB SAARE ENDPOINTS (Order is important)
-@app.get("/tasks")
-async def tasks():
-    return [
-        {"id": "easy", "description": "Stable climate, high budget"},
-        {"id": "medium", "description": "Standard resource management"},
-        {"id": "hard", "description": "Extreme weather challenges"}
-    ]
-
-@app.get("/state")
-async def state():
-    global current_obs
-    return {"observation": current_obs if current_obs is not None else {}}
-
+# 2. API ENDPOINTS (For Baseline Agent)
 @app.post("/reset")
 async def reset(request: Request):
     global current_obs
-    data = await request.json()
-    current_obs, _ = env.reset(options={"task": data.get("task", "medium")})
-    return {"observation": current_obs}
+    try:
+        data = await request.json()
+        task_input = data.get("task", "Medium: Standard")
+    except:
+        task_input = "Medium: Standard"
+    
+    mapping = {"Easy: Stable": 0, "Medium: Standard": 1, "Hard: Extreme": 2}
+    task_id = mapping.get(task_input, 1)
+    current_obs, _ = env.reset(options={"task": task_id})
+    return {"obs": current_obs}
 
 @app.post("/step")
 async def step(request: Request):
     global current_obs
-    data = await request.json()
-    
-    # Action Handling Logic
-    action_raw = data.get("action", 0)
-    action_map = {"WAIT": 0, "PLANT_CROP": 1, "IRRIGATE": 2, "FERTILIZE": 3, "PESTICIDE": 4}
-    
-    if isinstance(action_raw, str):
-        action = action_map.get(action_raw.upper(), 0)
-    else:
-        action = int(action_raw)
+    try:
+        data = await request.json()
+        action = int(data.get("action", 0))
+    except:
+        action = 0
+    obs, rew, done, _, info = env.step(action)
+    current_obs = obs
+    return {"obs": obs, "reward": rew, "done": done, "info": info}
 
-    current_obs, rew, done, _, info = env.step(action)
-    return {"observation": current_obs, "reward": rew, "done": done, "info": info}
-
-@app.post("/grader")
-async def grader(request: Request):
-    data = await request.json()
-    obs = data.get("observation", {})
-    health = obs.get("crop_health", 0)
-    budget = obs.get("budget", 0)
-    score = (health / 100) * 0.7 + (budget / 10000) * 0.3
-    return {"score": round(max(0, min(1.0, score)), 2)}
-
-@app.get("/baseline")
-async def baseline():
-    return {
-        "easy": round(random.uniform(0.8, 0.95), 2),
-        "medium": round(random.uniform(0.55, 0.75), 2),
-        "hard": round(random.uniform(0.25, 0.45), 2)
-    }
-
-# 4. GRADIO UI LOGIC
+# 3. UI LOGIC (Fixes the 'steps' error)
 def ui_run(task):
-    global current_obs
-    if current_obs is None:
-        current_obs, _ = env.reset(options={"task": task.split(":")[0].lower()})
+    global current_obs, last_level
     
-    action = 2 if current_obs['water_level'] < 30 else 4 if current_obs['pest_pressure'] > 40 else 0
-    new_obs, rew, done, _, info = env.step(action)
-    current_obs = new_obs
-    
-    if done: current_obs = None
-    
-    readable_actions = {0:"WAIT", 1:"PLANT", 2:"IRRIGATE", 3:"FERTILIZE", 4:"PESTICIDE"}
-    return new_obs['weather'], f"₹{new_obs['budget']}", f"{new_obs['water_level']}%", \
-           f"{new_obs['pest_pressure']}%", f"{new_obs['crop_health']}%", \
-           readable_actions.get(action, "WAIT"), f"{rew} pts", "🏁 Done" if done else "🟢 Active"
+    # Try-except block taaki 'steps' wala error UI crash na kare
+    try:
+        steps_count = getattr(env, 'steps', 0)
+        
+        # Reset if level changed or game ended
+        if task != last_level or steps_count == 0 or env.budget <= 0:
+            last_level = task
+            mapping = {"Easy: Stable": 0, "Medium: Standard": 1, "Hard: Extreme": 2}
+            current_obs, _ = env.reset(options={"task": mapping.get(task, 1)})
+        
+        # Automated Rule-based AI
+        if current_obs['water_level'] < 30: action = 2 # IRRIGATE
+        elif current_obs['pest_pressure'] > 40: action = 4 # PESTICIDE
+        else: action = 0 # WAIT
 
+        obs, rew, done, _, _ = env.step(action)
+        current_obs = obs
+        
+        readable_actions = {0:"WAIT", 1:"PLANT", 2:"IRRIGATE", 3:"FERTILIZE", 4:"PESTICIDE"}
+        status = "🏁 Done" if done else "🟢 Active"
+        
+        return obs['weather'], f"₹{obs['budget']}", f"{obs['water_level']}%", \
+               f"{obs['pest_pressure']}%", f"{obs['crop_health']}%", \
+               readable_actions.get(action, "WAIT"), f"{rew} pts", status
+               
+    except Exception as e:
+        return "Error", str(e), "Error", "Error", "Error", "Error", "0 pts", "❌ Error"
+
+# 4. GRADIO INTERFACE (Exact Screenshot Layout)
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
     gr.Markdown("# 🚜 Autonomous Agri-Advisor RL System")
-    t_in = gr.Dropdown(["Easy: Stable", "Medium: Standard", "Hard: Extreme"], value="Medium: Standard")
+    
+    t_in = gr.Dropdown(["Easy: Stable", "Medium: Standard", "Hard: Extreme"], label="Dropdown", value="Medium: Standard")
+    
     with gr.Row():
-        w = gr.Textbox(label="Weather"); b = gr.Textbox(label="Budget"); h = gr.Textbox(label="Health")
+        w = gr.Textbox(label="Weather")
+        b = gr.Textbox(label="Budget")
+        h = gr.Textbox(label="Health")
+    
     with gr.Row():
-        wat = gr.Textbox(label="Water"); p = gr.Textbox(label="Pest"); act = gr.Textbox(label="AI Action")
-    r = gr.Textbox(label="Reward"); s = gr.Label(label="Status")
+        wat = gr.Textbox(label="Water")
+        p = gr.Textbox(label="Pest")
+        act = gr.Textbox(label="AI Action")
+    
+    r = gr.Textbox(label="Reward")
+    s = gr.Label(label="Status")
+    
     btn = gr.Button("🚀 EXECUTE RL STEP", variant="primary")
     btn.click(ui_run, inputs=[t_in], outputs=[w, b, wat, p, h, act, r, s])
 
-# 5. MOUNT GRADIO TO FASTAPI
 app = gr.mount_gradio_app(app, demo, path="/")
 
 if __name__ == "__main__":
