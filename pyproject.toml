@@ -1,28 +1,23 @@
-[build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
-name = "farmer-advisory-env"
+name = "farmer-env"
 version = "0.1.0"
-description = "Autonomous Agri-Advisor RL System"
+description = "Autonomous Agri-Advisor RL System for Meta PyTorch Hackathon"
 readme = "README.md"
-requires-python = ">=3.9"
-
+requires-python = ">=3.12"
 dependencies = [
-    "gradio",
     "fastapi",
     "uvicorn",
+    "gradio",
     "requests",
+    "openai>=1.0.0",
+    "openenv>=0.1.13",
     "numpy",
-    "pandas",
-    "gymnasium",
-    "openenv>=0.2.0",
-    "openai"
+    "pandas"
 ]
 
-[project.scripts]
-server = "app:main"
+[tool.uv]
+managed = true
 
-[tool.setuptools]
-packages = { find = {} }
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
