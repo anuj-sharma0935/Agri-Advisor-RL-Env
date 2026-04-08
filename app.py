@@ -1,6 +1,8 @@
 import gradio as gr
 from fastapi import FastAPI, Request
 import uvicorn
+import os
+import sys
 from env import FarmerEnv
 
 # 1. SERVER SETUP
@@ -9,7 +11,7 @@ env = FarmerEnv()
 current_obs, _ = env.reset()
 last_level = "Medium: Standard"
 
-# 2. API ENDPOINTS
+# 2. API ENDPOINTS (For Baseline Agent & Automated Grading)
 @app.post("/reset")
 async def reset(request: Request):
     global current_obs
@@ -32,7 +34,6 @@ async def step(request: Request):
         action = int(data.get("action", 0))
     except:
         action = 0
-
     obs, rew, done, _, info = env.step(action)
     current_obs = obs
     return {"obs": obs, "reward": rew, "done": done, "info": info}
@@ -43,83 +44,87 @@ async def grader():
     try:
         health = current_obs.get('crop_health', 0)
         budget = current_obs.get('budget', 0)
+        # Score calculation: 70% Health + 30% Budget Efficiency
         score = (health / 100) * 0.7 + (min(budget, 5000) / 5000) * 0.3
         return {"score": round(float(score), 2)}
     except:
         return {"score": 0.0}
 
-# 3. UI LOGIC
+# 3. SMART UI LOGIC (Updated for Phase 2 Optimization)
 def ui_run(task):
     global current_obs, last_level
-
+    
     try:
         steps_count = getattr(env, 'steps', 0)
-
+        
+        # Reset if level changes or game ends
         if task != last_level or steps_count == 0 or env.budget <= 0:
             last_level = task
             mapping = {"Easy: Stable": 0, "Medium: Standard": 1, "Hard: Extreme": 2}
             current_obs, _ = env.reset(options={"task": mapping.get(task, 1)})
+        
+        # --- 🧠 SMART RL AGENT LOGIC ---
+        health = current_obs.get('crop_health', 100)
+        water = current_obs.get('water_level', 100)
+        pest = current_obs.get('pest_pressure', 0)
+        budget = current_obs.get('budget', 0)
 
-        if current_obs['water_level'] < 30:
-            action = 2
-        elif current_obs['pest_pressure'] > 45:
-            action = 4
+        # Priority 1: Survival (Critical Thresholds)
+        if water < 35: 
+            action = 2  # IRRIGATE (Proactive)
+        elif pest > 40: 
+            action = 4  # PESTICIDE (Prevention)
+        
+        # Priority 2: Health Boosting (For higher rewards)
+        elif health < 85 and budget > 1200:
+            action = 3  # FERTILIZE
+        
+        # Priority 3: Efficiency (Wait to save money)
         else:
-            action = 0
+            action = 0  # WAIT
+        # ------------------------------
 
         obs, rew, done, _, _ = env.step(action)
         current_obs = obs
-
+        
         readable_actions = {0:"WAIT", 1:"PLANT", 2:"IRRIGATE", 3:"FERTILIZE", 4:"PESTICIDE"}
         status = "🏁 Done" if done else "🟢 Active"
-
-        return (
-            obs['weather'],
-            f"₹{obs['budget']}",
-            f"{obs['water_level']}%",
-            f"{obs['pest_pressure']}%",
-            f"{obs['crop_health']}%",
-            readable_actions.get(action, "WAIT"),
-            f"{rew} pts",
-            status
-        )
-
+        
+        return obs['weather'], f"₹{obs['budget']}", f"{obs['water_level']}%", \
+               f"{obs['pest_pressure']}%", f"{obs['crop_health']}%", \
+               readable_actions.get(action, "WAIT"), f"{rew} pts", status
+               
     except Exception as e:
         return "Error", "Error", "0%", "0%", "0%", "ERROR", "0 pts", f"❌ {str(e)}"
 
-# 4. UI
+# 4. GRADIO INTERFACE
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
-    gr.Markdown("# 🚜 Autonomous Agri-Advisor RL System")
-
-    t_in = gr.Dropdown(
-        ["Easy: Stable", "Medium: Standard", "Hard: Extreme"],
-        value="Medium: Standard",
-        label="Select Mode"
-    )
-
+    gr.Markdown("# 🚜 Autonomous Agri-Advisor RL System (Pro)")
+    
+    t_in = gr.Dropdown(["Easy: Stable", "Medium: Standard", "Hard: Extreme"], label="Mode Selection", value="Medium: Standard")
+    
     with gr.Row():
         w = gr.Textbox(label="Weather")
         b = gr.Textbox(label="Budget")
         h = gr.Textbox(label="Health")
-
+    
     with gr.Row():
         wat = gr.Textbox(label="Water")
         p = gr.Textbox(label="Pest")
         act = gr.Textbox(label="AI Action")
-
-    r = gr.Textbox(label="Reward")
-    s = gr.Label(label="Status")
-
-    btn = gr.Button("🚀 EXECUTE RL STEP", variant="primary")
+    
+    r = gr.Textbox(label="Step Reward")
+    s = gr.Label(label="System Status")
+    
+    btn = gr.Button("🚀 EXECUTE SMART RL STEP", variant="primary")
     btn.click(ui_run, inputs=[t_in], outputs=[w, b, wat, p, h, act, r, s])
 
-# Mount Gradio
+# Mount Gradio to FastAPI
 app = gr.mount_gradio_app(app, demo, path="/")
 
-# 🔥 REQUIRED MAIN FUNCTION (IMPORTANT)
+# 5. ENTRY POINT
 def main():
     uvicorn.run(app, host="0.0.0.0", port=7860)
 
-# Local run
 if __name__ == "__main__":
     main()
