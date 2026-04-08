@@ -1,59 +1,60 @@
-import os
-import sys
+import requests
 import time
 
-# Ensure env.py and baseline_agent.py are discoverable
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-try:
-    from env import FarmerEnv
-    from baseline_agent import BaselineAgent
-except ImportError as e:
-    print(f"❌ Critical Error: Files not found! {e}")
-    sys.exit(1)
+# API URL (Localhost kyunki validator repo ke andar run karta hai)
+BASE_URL = "http://127.0.0.1:7860"
 
 def run_inference():
-    # Setup - No API needed, direct class interaction
-    env = FarmerEnv()
-    agent = BaselineAgent()
-
-    print("🚀 Starting Inference (Phase 1 Validated)...")
-
+    # 1. Start the Task
+    task_name = "Medium: Standard"
+    print(f"[START] task={task_name}", flush=True)
+    
     try:
-        # Reset (Using "medium" task for environment compatibility)
-        obs, _ = env.reset(options={"task": "medium"})
-        print(f"✅ Reset Successful. Initial State: {obs}")
-
-        total_reward = 0.0
+        # Reset Environment
+        response = requests.post(f"{BASE_URL}/reset", json={"task": task_name})
+        obs = response.json().get("obs", {})
         
-        # Loop for exactly 15 steps
-        for step in range(1, 16):
-            # Get action from your agent logic
-            action = agent.predict(obs)
+        total_reward = 0
+        total_steps = 0
+        max_steps = 50 # Jitne steps aapka environment allow kare
+        
+        for step in range(1, max_steps + 1):
+            # --- SMART LOGIC (Same as app.py) ---
+            water = obs.get('water_level', 100)
+            pest = obs.get('pest_pressure', 0)
+            health = obs.get('crop_health', 100)
+            budget = obs.get('budget', 5000)
+
+            if water < 35: action = 2
+            elif pest > 40: action = 4
+            elif health < 85 and budget > 1200: action = 3
+            else: action = 0
             
-            # Step the environment
-            obs, reward, done, truncated, info = env.step(action)
+            # Take Step
+            resp = requests.post(f"{BASE_URL}/step", json={"action": action})
+            data = resp.json()
+            obs = data.get("obs", {})
+            reward = data.get("reward", 0)
+            done = data.get("done", False)
+            
             total_reward += reward
+            total_steps = step
             
-            print(f"Step {step}: Action={action} | Reward={reward:.2f} | Health={obs.get('crop_health'):.1f}")
+            # 2. Print Step Output (Zaroori hai!)
+            print(f"[STEP] step={step} reward={reward}", flush=True)
             
             if done:
-                print("🏁 Episode Finished!")
                 break
-            
             time.sleep(0.1)
 
-        # Final Scoring (Matches your Grader requirements)
-        score = (obs.get('crop_health', 0) / 100) * 0.7 + (obs.get('budget', 0) / 10000) * 0.3
-        
-        print("\n" + "="*30)
-        print("📊 FINAL SUBMISSION REPORT")
-        print(f"Total Accumulated Reward: {round(total_reward, 2)}")
-        print(f"Grader Evaluation Score: {round(min(1.0, score), 2)}")
-        print("="*30)
+        # 3. End the Task (Final Score calculation)
+        final_score = (obs.get('crop_health', 0) / 100) * 0.7 + (min(obs.get('budget', 0), 5000) / 5000) * 0.3
+        print(f"[END] task={task_name} score={round(final_score, 4)} steps={total_steps}", flush=True)
 
     except Exception as e:
-        print(f"❌ Execution Error: {e}")
+        print(f"Error during inference: {e}")
 
 if __name__ == "__main__":
+    # Wait for server to be ready
+    time.sleep(5) 
     run_inference()
