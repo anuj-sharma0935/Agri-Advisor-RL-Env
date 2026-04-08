@@ -18,6 +18,7 @@ dependencies = [
     "pandas",
     "gymnasium",
     "openenv>=0.2.0"
+    "openai"
 ]
 
 [project.scripts]
